@@ -2,10 +2,11 @@ from fastapi import FastAPI, Depends, HTTPException
 from typing import List
 from sqlalchemy.orm import Session
 from app.database import engine, Base
-from app.dependency import get_db
+from app.dependency import get_db, lifespan
 
-from app import models, schemas
+from app import models
 
+from app.schemas import business_schemas, user_schemas
 from app.services.general_calculator import calculate
 from app.services.net_calculator import calculate_annual_net, calculate_net_quote, calculate_net_quote_with_estimated
 
@@ -34,10 +35,10 @@ GESTIONE_SEPARATA = 0.2607
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 
-@app.post("/users/", response_model=schemas.User)
-def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+@app.post("/users/", response_model=user_schemas.User)
+def create_user(user: user_schemas.UserCreate, db: Session = Depends(get_db)):
     hashed_password = "hashed_" + user.password
     del user.password  # Remove the plain password attribute
     print(user)
@@ -50,18 +51,24 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     
     return db_user
 
-@app.get("/users/", response_model=List[schemas.User])
+@app.get("/users/", response_model=List[user_schemas.User])
 def read_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     
     return db.query(models.User).offset(skip).limit(limit).all()
 
-@app.get("/users/{user_id}", response_model=schemas.User)
+@app.get("/users/{user_id}", response_model=user_schemas.User)
 def read_user(user_id: int, db: Session = Depends(get_db)):
     db_user = db.query(models.User).filter(models.User.id == user_id).first()
     
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
     return db_user
+
+@app.get("/ateco-codes/", response_model=List[business_schemas.BusinessActivity])
+def read_ateco_codes(skip: int = 0, limit: int = 0, db: Session = Depends(get_db)):
+    if limit == 0:
+        limit = None
+    return db.query(models.BusinessActivity).offset(skip).limit(limit).all()
 
 @app.get("/")
 def root():
