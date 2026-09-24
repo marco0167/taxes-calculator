@@ -1,4 +1,10 @@
+from fastapi import FastAPI, Depends, HTTPException
+from typing import List
+from sqlalchemy.orm import Session
+from app.database import engine, Base
+from app.dependency import get_db
 
+from app import models, schemas
 
 from app.services.general_calculator import calculate
 from app.services.net_calculator import calculate_annual_net, calculate_net_quote, calculate_net_quote_with_estimated
@@ -26,22 +32,116 @@ GESTIONE_SEPARATA = 0.2607
 # acconto_tasse_anno_precedente = Decimal(0)
 
 
-def main():
-    print(f"Netto annuale: {calculate_annual_net(30000, INPS_FISSO, AGEVOLAZIONE_CONTRIBUTIVA, COEFFICIENTE, QUOTA_PERCENTUALE_INPS, MINIMALE_REDDITO, ALIQUOTA_IMPOSTA_SOSTITUTIVA)}€")
-    print(f"Netto preventivo: {calculate_net_quote(1000, AGEVOLAZIONE_CONTRIBUTIVA, COEFFICIENTE, QUOTA_PERCENTUALE_INPS, ALIQUOTA_IMPOSTA_SOSTITUTIVA)}€")
-    print(f"Netto stimato: {calculate_net_quote_with_estimated(30000, 1000, INPS_FISSO, AGEVOLAZIONE_CONTRIBUTIVA, COEFFICIENTE, QUOTA_PERCENTUALE_INPS, MINIMALE_REDDITO, ALIQUOTA_IMPOSTA_SOSTITUTIVA)}€")
+Base.metadata.create_all(bind=engine)
 
-    value = calculate(
-        REDDITO_STIMATO,
-        COEFFICIENTE,
-        0,
-        0,
-        ALIQUOTA_IMPOSTA_SOSTITUTIVA,
-        GESTIONE_SEPARATA,
-        0
-    )
-    print(value)
-    print(f"Da pagare a Giugno: {value['june_payment']['total']}, \nDa pagare a Novembre: {value['november_payment']['total']}")
+app = FastAPI()
 
-if __name__ == "__main__": 
-    main()
+@app.post("/users/", response_model=schemas.User)
+def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+    hashed_password = "hashed_" + user.password
+    del user.password  # Remove the plain password attribute
+    print(user)
+
+    db_user = models.User(**user.model_dump(), hashed_password=hashed_password)
+    
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    
+    return db_user
+
+@app.get("/users/", response_model=List[schemas.User])
+def read_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    
+    return db.query(models.User).offset(skip).limit(limit).all()
+
+@app.get("/users/{user_id}", response_model=schemas.User)
+def read_user(user_id: int, db: Session = Depends(get_db)):
+    db_user = db.query(models.User).filter(models.User.id == user_id).first()
+    
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return db_user
+
+@app.get("/")
+def root():
+    return {"message": "Home page of the API. Use /docs to see the documentation."}
+
+@app.post("/calculate-annual-net")
+def calculate_annual_net_endpoint(
+    reddito_annuo: float, 
+    contributi_fissi: float,
+    agevolazione_contributiva: float,
+    coefficiente: float,
+    quota_percentuale_inps: float,
+    minimale_reddito: float,
+    imposta_sostitutiva: float
+):
+    return {"netto_annuale": calculate_annual_net(
+        reddito_annuo, 
+        contributi_fissi,
+        agevolazione_contributiva,
+        coefficiente,
+        quota_percentuale_inps,
+        minimale_reddito,
+        imposta_sostitutiva
+    )}
+    
+@app.post("/calculate-net-quote")
+def calculate_net_quote_endpoint(
+    lordo_preventivo: float, 
+    agevolazione_contributiva: float,
+    coefficiente: float,
+    quota_percentuale_inps: float,
+    imposta_sostitutiva: float
+):
+    return {"netto_preventivo": calculate_net_quote(
+        lordo_preventivo, 
+        agevolazione_contributiva,
+        coefficiente,
+        quota_percentuale_inps,
+        imposta_sostitutiva
+    )}
+    
+@app.post("/calculate-net-quote-with-estimated")
+def calculate_net_quote_with_estimated_endpoint(
+    reddito_annuo_stimato: float,
+    lordo_preventivo: float,
+    contributi_fissi: float,
+    agevolazione_contributiva: float,
+    coefficiente: float,
+    quota_percentuale_inps: float,
+    minimale_reddito: float,
+    imposta_sostitutiva: float
+):
+    return {"netto_stimato": calculate_net_quote_with_estimated(
+        reddito_annuo_stimato,
+        lordo_preventivo,
+        contributi_fissi,
+        agevolazione_contributiva,
+        coefficiente,
+        quota_percentuale_inps,
+        minimale_reddito,
+        imposta_sostitutiva
+    )}
+
+
+# def main():
+#     # print(f"Netto annuale: {calculate_annual_net(30000, INPS_FISSO, AGEVOLAZIONE_CONTRIBUTIVA, COEFFICIENTE, QUOTA_PERCENTUALE_INPS, MINIMALE_REDDITO, ALIQUOTA_IMPOSTA_SOSTITUTIVA)}€")
+#     # print(f"Netto preventivo: {calculate_net_quote(1000, AGEVOLAZIONE_CONTRIBUTIVA, COEFFICIENTE, QUOTA_PERCENTUALE_INPS, ALIQUOTA_IMPOSTA_SOSTITUTIVA)}€")
+#     # print(f"Netto stimato: {calculate_net_quote_with_estimated(30000, 1000, INPS_FISSO, AGEVOLAZIONE_CONTRIBUTIVA, COEFFICIENTE, QUOTA_PERCENTUALE_INPS, MINIMALE_REDDITO, ALIQUOTA_IMPOSTA_SOSTITUTIVA)}€")
+
+#     value = calculate(
+#         REDDITO_STIMATO,
+#         COEFFICIENTE,
+#         0,
+#         0,
+#         ALIQUOTA_IMPOSTA_SOSTITUTIVA,
+#         GESTIONE_SEPARATA,
+#         0
+#     )
+#     print(value)
+#     print(f"Da pagare a Giugno: {value['june_payment']['total']}, \nDa pagare a Novembre: {value['november_payment']['total']}")
+
+# if __name__ == "__main__": 
+#     main()
