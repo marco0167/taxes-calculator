@@ -1,13 +1,13 @@
 from sqlalchemy import UUID, Boolean, Column, Date, Enum, Float, Index, Integer, String, Text
 from app.database import Base
-from app.schemas.business_schemas import Regime
+from app.schemas.business_schemas import Level, Regime
     
 class BusinessActivity(Base):
     __tablename__ = 'business_activities'
 
     code = Column(String(10), primary_key=True, index=True)
     description = Column(Text, nullable=False)
-    level = Column(String(20), nullable=False, index=True) 
+    level = Column(String(20), Enum(Level), nullable=False, index=True) 
 
 class User(Base):
     __tablename__ = "users"

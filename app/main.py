@@ -64,11 +64,15 @@ def read_user(user_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="User not found")
     return db_user
 
-@app.get("/ateco-codes/", response_model=List[business_schemas.BusinessActivity])
-def read_ateco_codes(skip: int = 0, limit: int = 0, db: Session = Depends(get_db)):
+@app.get("/ateco-codes/{level}", response_model=List[business_schemas.BusinessActivity])
+def read_ateco_codes(level: business_schemas.Level = business_schemas.Level.all, skip: int = 0, limit: int = 0, db: Session = Depends(get_db)):
     if limit == 0:
         limit = None
-    return db.query(models.BusinessActivity).offset(skip).limit(limit).all()
+        
+    if level == business_schemas.Level.all:
+        return db.query(models.BusinessActivity).offset(skip).limit(limit).all()
+    
+    return db.query(models.BusinessActivity).filter(models.BusinessActivity.level == level.value).offset(skip).limit(limit).all()
 
 @app.get("/")
 def root():
