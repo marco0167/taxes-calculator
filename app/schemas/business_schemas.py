@@ -2,16 +2,16 @@ from pydantic import BaseModel
 from enum import Enum
 
 class Regime(Enum):
-    FORFETTARIO = "forfettario"
+    FORFETTARIO = 1
+    ORDINARIO = 2
     
 class Level(Enum):
-    section = "Sezione"
-    division = "Divisione"
-    group = "Gruppo"
-    class_ = "Classe"
-    category = "Categoria"
-    subcategory = "Sottocategoria"
-    all = "Tutti"
+    SEZIONE = "Sezione"
+    DIVISIONE = "Divisione"
+    GRUPPO = "Gruppo"
+    CLASSE = "Classe"
+    CATEGORIA = "Categoria"
+    SOTTOMARCA = "Sottocategoria"
 
 class BusinessActivity(BaseModel):
     code: str
@@ -19,7 +19,7 @@ class BusinessActivity(BaseModel):
     level: Level
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class UserTaxProfile(BaseModel):
     id: int
@@ -33,4 +33,4 @@ class UserTaxProfile(BaseModel):
     anno_inizio_attivita: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True

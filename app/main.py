@@ -1,12 +1,13 @@
 from fastapi import FastAPI, Depends, HTTPException
-from typing import List
+from typing import List, Optional
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from app.database import engine, Base
 from app.dependency import get_db, lifespan
 
 from app import models
 
-from app.schemas import business_schemas, user_schemas
+from app.schemas import business_schemas, user_schemas, user_tax_profile
 from app.services.general_calculator import calculate
 from app.services.net_calculator import calculate_annual_net, calculate_net_quote, calculate_net_quote_with_estimated
 
@@ -64,15 +65,50 @@ def read_user(user_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="User not found")
     return db_user
 
-@app.get("/ateco-codes/{level}", response_model=List[business_schemas.BusinessActivity])
-def read_ateco_codes(level: business_schemas.Level = business_schemas.Level.all, skip: int = 0, limit: int = 0, db: Session = Depends(get_db)):
+@app.get("/ateco-codes/", response_model=List[business_schemas.BusinessActivity])
+def read_ateco_codes(
+    skip: int = 0, 
+    limit: int = 0, 
+    level: Optional[business_schemas.Level] = None, 
+    db: Session = Depends(get_db)
+):
     if limit == 0:
         limit = None
         
-    if level == business_schemas.Level.all:
-        return db.query(models.BusinessActivity).offset(skip).limit(limit).all()
+    query = db.query(models.BusinessActivity)
     
-    return db.query(models.BusinessActivity).filter(models.BusinessActivity.level == level.value).offset(skip).limit(limit).all()
+    if level :
+        query = query.filter(models.BusinessActivity.level == level.value).offset(skip).limit(limit)
+    
+    db_ateco = query.offset(skip).limit(limit).all()
+    
+    return db_ateco
+
+@app.get("/casse-previdenziali/", response_model=List[user_tax_profile.CassaPrevidenziale])
+def read_cassa_previdenziale(
+    skip: int = 0, 
+    limit: int = 100,
+    search: Optional[str] = None, 
+    db: Session = Depends(get_db)
+):
+    query = db.query(models.CassaPrevidenziale)
+    
+    if search and search.strip():
+        search_term = f"%{search.lower()}%"
+        query = query.filter(
+            or_(
+                models.CassaPrevidenziale.id.ilike(search_term),
+                models.CassaPrevidenziale.nome.ilike(search_term),
+                models.CassaPrevidenziale.descrizione.ilike(search_term)
+            )
+        )
+    
+    db_cassa = query.offset(skip).limit(limit).all()
+    
+    if not db_cassa:
+        raise HTTPException(status_code=404, detail="Cassa Previdenziale not found")
+    
+    return db_cassa
 
 @app.get("/")
 def root():
