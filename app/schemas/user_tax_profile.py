@@ -1,9 +1,15 @@
 from pydantic import BaseModel
-from enum import Enum
+from enum import StrEnum, Enum
 
-class AliquotaImpostaSostitutiva(Enum):
+class AliquotaImpostaSostitutiva(float, Enum):
     FORFETTARIO_5 = 0.05
     FORFETTARIO_15 = 0.15
+    
+class TargetRiduzione(StrEnum):
+    CONTRIBUTI_FISSI = "contributi_fissi"
+    CONTRIBUTI_ECCEDENTI = "contributi_eccedenti"
+    IMPOSTA_SOSTITUTIVA = "imposta_sostitutiva"
+    TOTALE_CONTRIBUTI = "totale_contributi"
 
 class CassaPrevidenziale(BaseModel):
     id: str
@@ -17,4 +23,16 @@ class CassaPrevidenziale(BaseModel):
     class Config:
         from_attributes = True
         
-    
+class UserTaxProfileCreate(BaseModel):
+    user_id: str
+    regime_fiscale: int
+    codice_ateco: str
+    coefficiente_redditivita: float
+    cassa_previdenziale: str
+    aliquota_imposta: float
+    aliquota_inps_personale: float
+    riduzioni_applicabili: list[str]
+    anno_inizio_attivita: int
+
+    class Config:
+        from_attributes = True

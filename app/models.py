@@ -1,17 +1,38 @@
-from sqlalchemy import UUID, Boolean, Column, Date, Enum, Float, ForeignKey, Index, Numeric, String, Text
+import uuid
+
+from sqlalchemy import UUID, Boolean, Column, Date, Enum, Float, ForeignKey, Index, Numeric, String, Table, Text
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.orm import relationship
 from app.database import Base
+from app.schemas import user_tax_profile
 from app.schemas.business_schemas import Level, Regime
 from app.schemas.user_tax_profile import AliquotaImpostaSostitutiva
     
-class BusinessActivity(Base):
+user_riduzioni_association = Table(
+    'user_riduzioni_link',
+    Base.metadata,
+    Column(
+        'user_tax_profiles_id', 
+        UUID(as_uuid=True), 
+        ForeignKey('user_tax_profiles.id', ondelete='CASCADE'), 
+        primary_key=True
+    ),
+    Column(
+        '   ', 
+        UUID(as_uuid=True), 
+        ForeignKey('riduzioni.id', ondelete='CASCADE'), 
+        primary_key=True
+    )
+)
+
+class BusinessActivityModel(Base):
     __tablename__ = 'business_activities'
 
     code = Column(String(10), primary_key=True, index=True)
     description = Column(Text, nullable=False)
     level = Column(String(20), Enum(Level), nullable=False, index=True)
     
-class CassaPrevidenziale(Base):
+class CassaPrevidenzialeModel(Base):
     __tablename__ = 'casse_previdenziali'
 
     id = Column(String(36), primary_key=True)
@@ -23,8 +44,20 @@ class CassaPrevidenziale(Base):
     minimale_reddito = Column(Float, default=0.00)
     note_agevolazioni = Column(Text)
 
+class RiduzioniModel(Base):
+    __tablename__ = 'riduzioni'
 
-class User(Base):
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    descrizione = Column(String(250), index=True)
+    percentuale_riduzione = Column(Numeric(5, 2), default=0.00, nullable=False)
+    target_applicazione = Column(Enum(user_tax_profile.TargetRiduzione), nullable=True, default=user_tax_profile.TargetRiduzione.CONTRIBUTI_FISSI)
+    regimi_fiscali_applicabili = Column(
+        postgresql.ARRAY(Enum(Regime, create_type=False, values_callable=lambda x: [e.name for e in x])), 
+        nullable=True
+    )
+    
+
+class UserModel(Base):
     __tablename__ = "users"
 
     id = Column(UUID, primary_key=True)
@@ -32,26 +65,31 @@ class User(Base):
     email = Column(String, unique=True, index=True)
     hashed_password = Column(String)
 
-class UserTaxProfile(Base):
+class UserTaxProfileModel(Base):
     __tablename__ = "user_tax_profiles"
 
     id = Column(UUID, primary_key=True)
-    user_id = Column(UUID, ForeignKey(User.id), index=True)
+    user_id = Column(UUID, ForeignKey(UserModel.id), index=True)
     regime_fiscale = Column(postgresql.SMALLINT, Enum(Regime), nullable=False)
-    codice_ateco = Column(String, ForeignKey(BusinessActivity.code), index=True)
+    codice_ateco = Column(String, ForeignKey(BusinessActivityModel.code), index=True)
     coefficiente_redditivita = Column(Float)
-    cassa_previdenziale = Column(String(36), ForeignKey(CassaPrevidenziale.id), index=True)
+    cassa_previdenziale = Column(String(36), ForeignKey(CassaPrevidenzialeModel.id), index=True)
     aliquota_imposta = Column(Float, Enum(AliquotaImpostaSostitutiva), nullable=False)
     aliquota_inps = Column(Numeric(5, 2), default=0.00)
     aliquota_inps_personale = Column(Numeric(5, 2), default=0.00)
     contibuto_fisso_inps = Column(Numeric(10, 2), default=0.00)
     anno_inizio_attivita = Column(postgresql.SMALLINT)
-    
-class Invoice(Base):
+    riduzioni_applicabili = relationship(
+        "RiduzioniModel", 
+        secondary=user_riduzioni_association,
+        backref="user_tax_profiles"
+    )
+
+class InvoiceModel(Base):
     __tablename__ = "invoices"
 
     id = Column(UUID, primary_key=True)
-    profile_id = Column(UUID, ForeignKey(UserTaxProfile.id), index=True)
+    profile_id = Column(UUID, ForeignKey(UserTaxProfileModel.id), index=True)
     data_pagamento = Column(Date)
     data_incasso = Column(Date, nullable=True)
     data_incasso_prevista = Column(Date, nullable=True)
@@ -59,31 +97,31 @@ class Invoice(Base):
     bollo = Column(Float, default=0.0)
     rivalsa_inps_addebitata = Column(Float, default=0.0)
 
-Index('idx_invoices_data_incasso', Invoice.profile_id, Invoice.data_incasso)
-Index('idx_invoices_data_incasso_prevista', Invoice.profile_id, Invoice.data_incasso_prevista)
+Index('idx_invoices_data_incasso', InvoiceModel.profile_id, InvoiceModel.data_incasso)
+Index('idx_invoices_data_incasso_prevista', InvoiceModel.profile_id, InvoiceModel.data_incasso_prevista)
 
-class Expences(Base):
+class ExpencesModel(Base):
     __tablename__ = "expences"
 
     id = Column(UUID, primary_key=True)
-    profile_id = Column(UUID, ForeignKey(UserTaxProfile.id), index=True)
+    profile_id = Column(UUID, ForeignKey(UserTaxProfileModel.id), index=True)
     amount = Column(Float)
     data_pagamento = Column(Date, nullable=True)
     is_contributo_inps = Column(Boolean, default=False)
     description = Column(String, nullable=True)
     
-Index('idx_expences_data_pagamento', Expences.profile_id, Expences.data_pagamento)
+Index('idx_expences_data_pagamento', ExpencesModel.profile_id, ExpencesModel.data_pagamento)
 
-class TaxDeadline(Base):
+class TaxDeadlineModel(Base):
     __tablename__ = "tax_deadlines"
 
     id = Column(UUID, primary_key=True)
-    profile_id = Column(UUID, ForeignKey(UserTaxProfile.id), index=True)
+    profile_id = Column(UUID, ForeignKey(UserTaxProfileModel.id), index=True)
     tipo_imposta = Column(String)
     data_scadenza = Column(Date)
     importo_previsto = Column(Float)
     importo_pagato = Column(Float, default=0.0)
     is_pagato = Column(Boolean, default=False)
     
-Index('idx_tax_deadlines_data_scadenza', TaxDeadline.profile_id, TaxDeadline.data_scadenza)
+Index('idx_tax_deadlines_data_scadenza', TaxDeadlineModel.profile_id, TaxDeadlineModel.data_scadenza)
     

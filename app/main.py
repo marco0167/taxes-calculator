@@ -2,14 +2,14 @@ from fastapi import FastAPI, Depends, HTTPException
 from typing import List, Optional
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
-from app.database import engine, Base
-from app.dependency import get_db, lifespan
+from .database import engine, Base
+from .dependency import get_db, lifespan
 
-from app import models
+from .models import BusinessActivityModel, CassaPrevidenzialeModel, RiduzioniModel, UserModel, UserTaxProfileModel, InvoiceModel, ExpencesModel, TaxDeadlineModel
 
-from app.schemas import business_schemas, user_schemas, user_tax_profile
-from app.services.general_calculator import calculate
-from app.services.net_calculator import calculate_annual_net, calculate_net_quote, calculate_net_quote_with_estimated
+from .schemas import business_schemas, user_schemas, user_tax_profile
+from .services.general_calculator import calculate
+from .services.net_calculator import calculate_annual_net, calculate_net_quote, calculate_net_quote_with_estimated
 
 INPS_FISSO = 4521
 AGEVOLAZIONE_CONTRIBUTIVA = 0.50
@@ -44,7 +44,7 @@ def create_user(user: user_schemas.UserCreate, db: Session = Depends(get_db)):
     del user.password  # Remove the plain password attribute
     print(user)
 
-    db_user = models.User(**user.model_dump(), hashed_password=hashed_password)
+    db_user = UserModel(**user.model_dump(), hashed_password=hashed_password)
     
     db.add(db_user)
     db.commit()
@@ -55,11 +55,11 @@ def create_user(user: user_schemas.UserCreate, db: Session = Depends(get_db)):
 @app.get("/users/", response_model=List[user_schemas.User])
 def read_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     
-    return db.query(models.User).offset(skip).limit(limit).all()
+    return db.query(UserModel).offset(skip).limit(limit).all()
 
 @app.get("/users/{user_id}", response_model=user_schemas.User)
 def read_user(user_id: int, db: Session = Depends(get_db)):
-    db_user = db.query(models.User).filter(models.User.id == user_id).first()
+    db_user = db.query(UserModel).filter(UserModel.id == user_id).first()
     
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -75,10 +75,10 @@ def read_ateco_codes(
     if limit == 0:
         limit = None
         
-    query = db.query(models.BusinessActivity)
+    query = db.query(BusinessActivityModel)
     
     if level :
-        query = query.filter(models.BusinessActivity.level == level.value).offset(skip).limit(limit)
+        query = query.filter(BusinessActivityModel.level == level.value).offset(skip).limit(limit)
     
     db_ateco = query.offset(skip).limit(limit).all()
     
@@ -91,15 +91,15 @@ def read_cassa_previdenziale(
     search: Optional[str] = None, 
     db: Session = Depends(get_db)
 ):
-    query = db.query(models.CassaPrevidenziale)
+    query = db.query(CassaPrevidenzialeModel)
     
     if search and search.strip():
         search_term = f"%{search.lower()}%"
         query = query.filter(
             or_(
-                models.CassaPrevidenziale.id.ilike(search_term),
-                models.CassaPrevidenziale.nome.ilike(search_term),
-                models.CassaPrevidenziale.descrizione.ilike(search_term)
+                CassaPrevidenzialeModel.id.ilike(search_term),
+                CassaPrevidenzialeModel.nome.ilike(search_term),
+                CassaPrevidenzialeModel.descrizione.ilike(search_term)
             )
         )
     
@@ -109,6 +109,9 @@ def read_cassa_previdenziale(
         raise HTTPException(status_code=404, detail="Cassa Previdenziale not found")
     
     return db_cassa
+
+# @app.post("/user-tax-profile/", response_model=user_tax_profile.UserTaxProfile)
+# def create_user_tax_profile(profile: user_tax_profile.UserTaxProfileCreate, db: Session = Depends(get_db)):
 
 @app.get("/")
 def root():

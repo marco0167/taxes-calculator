@@ -1,11 +1,13 @@
 from pydantic import BaseModel
-from enum import Enum
+from enum import IntEnum, StrEnum
 
-class Regime(Enum):
-    FORFETTARIO = 1
-    ORDINARIO = 2
+class Regime(IntEnum):
+    FORFETTARIO_5 = 1
+    FORFETTARIO_15 = 2
+    ORDINARIO = 3
+    SEMPLIFICATO = 4
     
-class Level(Enum):
+class Level(StrEnum):
     SEZIONE = "Sezione"
     DIVISIONE = "Divisione"
     GRUPPO = "Gruppo"

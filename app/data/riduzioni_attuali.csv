@@ -1,0 +1,4 @@
+descrizione;percentuale_riduzione;target_applicazione;regimi_fiscali_applicabili
+Riduzione del 35% sui contributi INPS (Regime Forfettario);35.0;totale_contributi;{1,2}
+Riduzione del 50% sui contributi INPS per pensionati con più di 65 anni;50.0;totale_contributi;{1,2,3,4}
+Sgravio contributivo del 50% per coadiutori familiari di età inferiore a 21 anni;50.0;contributi_fissi;{1,2,3,4}
